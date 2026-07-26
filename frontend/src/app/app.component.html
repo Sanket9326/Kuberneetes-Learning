@@ -1,0 +1,34 @@
+<main>
+  <h1>Simple Web App</h1>
+  <p>Angular frontend + .NET backend, containerized for learning Kubernetes.</p>
+
+  @if (info(); as data) {
+    <table>
+      <tbody>
+        <tr>
+          <th>Backend pod / host name</th>
+          <td>{{ data.hostName }}</td>
+        </tr>
+        <tr>
+          <th>Environment</th>
+          <td>{{ data.environment }}</td>
+        </tr>
+        <tr>
+          <th>Server time (UTC)</th>
+          <td>{{ data.serverTimeUtc }}</td>
+        </tr>
+      </tbody>
+    </table>
+  } @else if (error()) {
+    <p class="error">{{ error() }}</p>
+  } @else {
+    <p>Loading backend info...</p>
+  }
+
+  <button (click)="loadInfo()">Refresh</button>
+
+  <p class="hint">
+    Refresh after scaling the backend Deployment in Kubernetes &mdash;
+    the host name changes as the Service load-balances across pods.
+  </p>
+</main>
