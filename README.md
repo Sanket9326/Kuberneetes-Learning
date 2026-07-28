@@ -2,9 +2,14 @@
 
 A minimal two-service web app for learning Docker and Kubernetes:
 
-- **backend/** — ASP.NET Core minimal API (`/api/info`, `/healthz`). No database.
+- **backend/** — ASP.NET Core minimal API (`/api/info`, `/api/heavy`, `/healthz`, `/health/{live,ready,startup}`). No database.
 - **frontend/** — Angular app that calls the backend and displays which pod served the request.
-- **k8s/** — Deployment + Service manifests for both services.
+- **k8s/** — Manifests for the app plus a few standalone learning examples:
+  - `backend-deployment.yaml`, `backend-service.yaml`, `frontend-deployment.yaml`, `frontend-service.yaml` — the core app.
+  - `backend-configmap.yaml`, `backend-secret.yaml` — env vars injected into the backend via `envFrom`.
+  - `backend-hpa.yaml` — HorizontalPodAutoscaler for the backend Deployment (needs `metrics-server`).
+  - `ingress.yaml` — routes `/` to the frontend and `/api` to the backend (needs an ingress controller, e.g. ingress-nginx).
+  - `stateful-app.yaml`, `headless-service.yaml` — a standalone StatefulSet + headless Service demo in the `stateful-demo` namespace (unrelated to the frontend/backend app; the namespace must exist before applying).
 
 ```
 Browser -> frontend Service (NodePort) -> frontend pods (nginx + Angular)
@@ -52,19 +57,24 @@ Open http://localhost:8081. (The frontend container's nginx proxies `/api` to `b
 Any local cluster works: Docker Desktop's built-in Kubernetes, `kind`, or `minikube`. Examples below assume Docker Desktop Kubernetes (images built locally are already visible to it — no registry push needed). If you use `kind`, run `kind load docker-image simple-web-app-backend:latest simple-web-app-frontend:latest` after building. If you use `minikube`, run `eval $(minikube docker-env)` before building the images so they land in minikube's Docker daemon.
 
 1. Build the images (see above), tagged `simple-web-app-backend:latest` and `simple-web-app-frontend:latest` to match `k8s/*-deployment.yaml`.
-2. Apply the manifests:
+2. Create the namespace used by the StatefulSet demo (only needed once):
+   ```
+   kubectl create namespace stateful-demo
+   ```
+3. Apply the manifests:
    ```
    kubectl apply -f k8s/
    ```
-3. Check status:
+4. Check status:
    ```
    kubectl get pods
    kubectl get deployments
    kubectl get services
    ```
-4. Open the app:
+5. Open the app:
    - Docker Desktop / minikube with `nodePort`: http://localhost:30080 (Docker Desktop) or `http://$(minikube ip):30080` (minikube).
    - Otherwise: `kubectl port-forward svc/frontend-service 8081:80` then open http://localhost:8081.
+   - Via Ingress (needs ingress-nginx installed): `kubectl apply -f k8s/ingress.yaml` then open http://localhost/.
 
 ## Things to try while learning Kubernetes
 
@@ -84,7 +94,19 @@ Any local cluster works: Docker Desktop's built-in Kubernetes, `kind`, or `minik
   kubectl rollout status deployment backend
   ```
 - Inspect the readiness/liveness probes in `k8s/backend-deployment.yaml` and `k8s/frontend-deployment.yaml`, and see what happens if `/healthz` starts failing.
+- Drive load against `/api/heavy` and watch `k8s/backend-hpa.yaml` scale the backend out (needs `metrics-server` installed):
+  ```
+  kubectl get hpa backend-hpa -w
+  ```
+- Look at the StatefulSet demo in `stateful-demo`: unlike the backend Deployment, pods get stable names and their own PersistentVolumeClaim:
+  ```
+  kubectl get pods -n stateful-demo -w
+  kubectl get pvc -n stateful-demo
+  kubectl delete pod stateful-app-0 -n stateful-demo
+  ```
+  The replacement pod comes back as `stateful-app-0` again and reattaches the same PVC — contrast with a Deployment pod, which gets a brand-new random name every time.
 - Tear everything down:
   ```
   kubectl delete -f k8s/
+  kubectl delete namespace stateful-demo
   ```
