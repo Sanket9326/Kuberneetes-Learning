@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+
+kind: CronJob
+
+metadata:
+  name: my-job
+
+spec:
+  schedule: "0 8 * * *"
+  jobTemplate:
+    spec:
+      backoffLimit: 4
+      template:
+        spec:
+          containers:
+            - name: my-job-container
+              image: busybox
+              command: ["sh", "-c", "echo Hello, Kubernetes! && sleep 30"]
+          restartPolicy: OnFailure
