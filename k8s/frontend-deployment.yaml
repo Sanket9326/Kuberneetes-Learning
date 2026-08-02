@@ -18,13 +18,21 @@ spec:
         app: frontend
 
     spec:
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: backend
+              topologyKey: "kubernetes.io/hostname"
+
       containers:
         - name: frontend
           image: frontend:latest
           imagePullPolicy: Never
           ports:
             - containerPort: 8080
-            
+
           resources:
             requests:
               cpu: "250m"
