@@ -5,7 +5,7 @@ A minimal two-service web app for learning Docker and Kubernetes:
 - **backend/** — ASP.NET Core minimal API (`/api/info`, `/api/heavy`, `/healthz`, `/health/{live,ready,startup}`). No database.
 - **frontend/** — Angular app that calls the backend and displays which pod served the request.
 - **k8s/** — Manifests for the app plus a few standalone learning examples:
-  - `backend-deployment.yaml` — the backend Deployment; uses a `RollingUpdate` strategy (`maxSurge: 1`, `maxUnavailable: 1`) and requires `amd64` nodes via `nodeAffinity`.
+  - `backend-deployment.yaml` — the backend Deployment; runs 4 replicas with a `RollingUpdate` strategy (`maxSurge: 1`, `maxUnavailable: 1`) and requires `amd64` nodes via `nodeAffinity`.
   - `frontend-deployment.yaml` — the frontend Deployment; uses `podAffinity` to require scheduling on the same node as a `backend` pod.
   - `backend-service.yaml`, `frontend-service.yaml` — Services for the core app.
   - `backend-configmap.yaml`, `backend-secret.yaml` — env vars injected into the backend via `envFrom`.
@@ -14,6 +14,7 @@ A minimal two-service web app for learning Docker and Kubernetes:
   - `cornJob.yaml` — a standalone CronJob demo (`my-job`) that runs daily at 08:00 and prints a message.
   - `node-exporter-daemonset.yaml` — a standalone DaemonSet demo running `node-exporter` on every node (`hostNetwork`/`hostPID`) in the `monitoring` namespace; the namespace must exist before applying.
   - `stateful-app.yaml`, `headless-service.yaml` — a standalone StatefulSet + headless Service demo in the `stateful-demo` namespace (unrelated to the frontend/backend app; the namespace must exist before applying).
+- **argocd/** — an ArgoCD `Application` manifest (`application.yaml`) that points at this repo's `k8s/` folder for GitOps-style deployment.
 
 ```
 Browser -> frontend Service (NodePort) -> frontend pods (nginx + Angular)
@@ -80,6 +81,35 @@ Any local cluster works: Docker Desktop's built-in Kubernetes, `kind`, or `minik
    - Docker Desktop / minikube with `nodePort`: http://localhost:30080 (Docker Desktop) or `http://$(minikube ip):30080` (minikube).
    - Otherwise: `kubectl port-forward svc/frontend-service 8081:80` then open http://localhost:8081.
    - Via Ingress (needs ingress-nginx installed): `kubectl apply -f k8s/ingress.yaml` then open http://localhost/.
+
+## Deploy via ArgoCD (GitOps)
+
+Instead of running `kubectl apply -f k8s/` by hand, ArgoCD can continuously sync the cluster to what's committed in this repo.
+
+1. Install ArgoCD into its own namespace (only needed once per cluster):
+   ```
+   kubectl create namespace argocd
+   kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+   ```
+2. Access the ArgoCD UI/API (port-forward is simplest locally):
+   ```
+   kubectl port-forward svc/argocd-server -n argocd 8443:443
+   ```
+   Open https://localhost:8443. Log in as `admin`; get the initial password with:
+   ```
+   kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}"
+   ```
+   (decode the base64 output).
+3. Register the app by applying the `Application` manifest in this repo:
+   ```
+   kubectl apply -f argocd/application.yaml
+   ```
+   This points ArgoCD at `k8s/` on the `main` branch, deploys into the `default` namespace, and turns on automated sync with `prune` + `selfHeal` — so any manifest change pushed to `main` is applied automatically, and manual `kubectl` drift gets reverted.
+4. Check sync status:
+   ```
+   kubectl get application simple-web-app -n argocd
+   argocd app get simple-web-app   # if the argocd CLI is installed
+   ```
 
 ## Things to try while learning Kubernetes
 
