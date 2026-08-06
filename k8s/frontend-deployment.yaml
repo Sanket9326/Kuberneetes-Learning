@@ -8,6 +8,12 @@ metadata:
 spec:
   replicas: 3
 
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+
   selector:
     matchLabels:
       app: frontend
@@ -19,12 +25,14 @@ spec:
 
     spec:
       affinity:
-        podAffinity:
+        nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  app: backend
-              topologyKey: "kubernetes.io/hostname"
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                      - "amd64"
 
       containers:
         - name: frontend
@@ -40,3 +48,40 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
+
+          volumeMounts:
+            - name: cache
+              mountPath: /cache
+
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 20
+
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            periodSeconds: 5
+            initialDelaySeconds: 3
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            periodSeconds: 10
+            initialDelaySeconds: 20
+            failureThreshold: 3
+            timeoutSeconds: 2
+
+          envFrom:
+            - configMapRef:
+                name: frontend-config
+            - secretRef:
+                name: frontend-secret
+      volumes:
+        - name: cache
+          emptyDir: {}
