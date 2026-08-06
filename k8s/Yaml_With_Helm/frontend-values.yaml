@@ -1,0 +1,13 @@
+name: frontend
+
+replicaCount: 3
+
+image:
+  repository: frontend
+  tag: latest
+  pullPolicy: Never
+
+service:
+  port: 80
+  targetPort: 8080
+  type: ClusterIP

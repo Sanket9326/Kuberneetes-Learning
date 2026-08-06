@@ -1,0 +1,13 @@
+name: backend
+
+replicaCount: 4
+
+image:
+  repository: backend
+  tag: latest
+  pullPolicy: Never
+
+service:
+  port: 80
+  targetPort: 8080
+  type: ClusterIP
